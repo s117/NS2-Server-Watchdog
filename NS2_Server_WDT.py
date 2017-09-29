@@ -190,6 +190,8 @@ class ServerProcessHandler:
             try:
                 cmdline = ""
                 for p in self.__param:
+                    if " " in p:
+                        p = "\"" + p + "\""
                     cmdline = cmdline + p + " "
 
                 self.__process = Popen(cmdline,
@@ -199,6 +201,8 @@ class ServerProcessHandler:
                 self.__pid = self.__process.pid
                 self.__ps = psutil.Process(pid=self.__pid)
                 self.__ps_cmdline = ""
+
+                Logger.debug("Process's cmdline: %s" % str(self.__ps.cmdline()))
 
                 for i in self.__ps.cmdline():
                     self.__ps_cmdline = self.__ps_cmdline + i + " "
@@ -288,7 +292,7 @@ class ServerProcessHandler:
         except IOError:
             Logger.fatal("Fail to force update the ping_mode record, check user permission")
         else:
-            Logger.verbose("Force updated the ping_mod record, value: %s")
+            Logger.verbose("Force updated the ping_mod record, value: %s" % st)
 
     def __archive_log_and_dmp(self):
         DEFAULT_LOG_FILE_NAME = "log-Server.txt"
