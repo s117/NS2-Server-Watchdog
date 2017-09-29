@@ -1,17 +1,16 @@
 # NS2-Server-Watchdog
-A watchdog script for the NS2 dedicated server. To let the script take care of your server, you should use this script to start your dedicated server.
-
-Tested under Windows.
+A watchdog script for the NS2 dedicated server.
+To let the script take care of your server, you should use this script to start your dedicated server.
 
 ### Settings in the config.json
         # Monitoring interval in second.
         "monitor_interval": 1,
 
-        # If the server is running, check whether the lua engine is still alive with the help of ping_mod (mod_id=1B2340F1).
+        # Check whether the lua engine is still alive or not by utilizing "ping_mod" (mod_id=1B2340F1).
         "check_lua_engine_status": True,
 
         # Lua engine unresponsive tolerance (in seconds).
-        # PS:: DO NOT set a too small value, because the record pf ping_mode will stop update during map change and init
+        # PS: DO NOT set it too low, because ping_mode's record will stop update during the initializing & map changing.
         "lua_engine_no_response_threshold": 60,
 
         # Date format of ping_mod's output.
@@ -51,5 +50,7 @@ Tested under Windows.
 
         # Output verbose level, 0 for lowest and 2 for highest.
         "verbose_level": 2
-        
-MIT Licensed.
+
+Tested under Windows.
+
+MIT License.
