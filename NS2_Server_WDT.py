@@ -23,7 +23,6 @@ if cmp(platform.system(), 'Windows') is 0:
 else:
     from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
 
-
 VERBOSE_LEVEL = 0
 ExitFlag = False
 
@@ -46,36 +45,36 @@ class Logger:
     def debug(text):
         if VERBOSE_LEVEL >= 2:
             Logger.__console_writer.debug(
-                "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                     "DEBUG", str(text)))
+                u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                      "DEBUG", unicode(text)))
 
     @staticmethod
     def verbose(text):
         if VERBOSE_LEVEL >= 1:
             Logger.__console_writer.verbose(
-                "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                     "VERBOSE", str(text)))
+                u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                      "VERBOSE", unicode(text)))
 
     @staticmethod
     def info(text):
         Logger.__console_writer.normal(
-            "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                 "INFO", str(text)))
+            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                  "INFO", unicode(text)))
 
     @staticmethod
     def warn(text):
         Logger.__console_writer.warn(
-            "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                 "WARN", str(text)))
+            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                  "WARN", unicode(text)))
 
     @staticmethod
     def fatal(text, exitcode=-1):
         Logger.__console_writer.error(
-            "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                 "FATAL", str(text)))
+            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                  "FATAL", unicode(text)))
         Logger.__console_writer.error(
-            "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                 "FATAL", ("Program terminated, exit code: %d." % exitcode)))
+            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                  "FATAL", (u"Program terminated, exit code: %d." % exitcode)))
         exit(exitcode)
 
 
@@ -146,7 +145,8 @@ class ConfigManager:
     @staticmethod
     def save_config():
         with open(ConfigManager.__CONFIG_FILENAME, 'w') as f:
-            f.write(json.dumps(ConfigManager.__config, indent=4, sort_keys=True))
+            content = json.dumps(ConfigManager.__config, indent=4, sort_keys=True, encoding="utf-8", ensure_ascii=False)
+            f.write(content.encode("utf-8"))
         Logger.info("Flushed config to '%s'" % ConfigManager.__CONFIG_FILENAME)
 
     @staticmethod
@@ -155,12 +155,16 @@ class ConfigManager:
         if os.path.exists(ConfigManager.__CONFIG_FILENAME):
             Logger.info("Loading config from file '%s'" % ConfigManager.__CONFIG_FILENAME)
             with open(ConfigManager.__CONFIG_FILENAME) as json_file:
-                json_data = json.load(json_file)
-                for i, v in ConfigManager.__DEFAULT_CONFIG.items():
-                    if i in json_data:
-                        ConfigManager.__config[i] = json_data[i]
-                    else:
-                        ConfigManager.__config[i] = ConfigManager.__DEFAULT_CONFIG[i]
+                try:
+                    json_data = json.load(json_file, encoding="utf-8")
+                except ValueError:
+                    Logger.fatal("Invalid config.json, please check it.")
+                else:
+                    for i, v in ConfigManager.__DEFAULT_CONFIG.items():
+                        if i in json_data:
+                            ConfigManager.__config[i] = json_data[i]
+                        else:
+                            ConfigManager.__config[i] = ConfigManager.__DEFAULT_CONFIG[i]
         else:
             Logger.info("File '%s' not found, a new one will be created" % ConfigManager.__CONFIG_FILENAME)
             ConfigManager.__config = ConfigManager.__DEFAULT_CONFIG
@@ -201,15 +205,15 @@ class ServerProcessHandler:
             Logger.fatal("You have no execute privilege on server's executable image: %s", executable_path)
 
         param.append("-config_path")
-        param.append("" + ConfigManager.get_config("server_config_cfg_dir") + "")
+        param.append(ConfigManager.get_config("server_config_cfg_dir"))
 
         param.append("-modstorage")
-        param.append("" + ConfigManager.get_config("server_config_mod_dir") + "")
+        param.append(ConfigManager.get_config("server_config_mod_dir"))
 
         param.append("-logdir")
-        param.append("" + ConfigManager.get_config("server_config_log_dir") + "")
+        param.append(ConfigManager.get_config("server_config_log_dir"))
 
-        self.__param = param + shlex.split(ConfigManager.get_config("server_config_extra_parameter"))
+        self.__param = param + shlex.split(ConfigManager.get_config("server_config_extra_parameter").encode('utf8'))
 
         self.__pid = -1
         self.__process = None
@@ -232,18 +236,21 @@ class ServerProcessHandler:
             os.chdir(ConfigManager.get_config("server_path"))
 
             try:
-                cmdline = ""
+                cmdline = u""
                 for p in self.__param:
+                    if type(p) is not unicode:
+                        p = p.decode('utf-8')
                     if " " in p:
-                        p = "\"" + p + "\""
-                    cmdline = cmdline + p + " "
+                        p = u"\"" + p + u"\""
+                    cmdline = cmdline + p + u" "
 
-                Logger.info("Starting server using cmdline:'%s'" % cmdline)
+                Logger.info(u"Starting server using cmdline:'%s'" % cmdline)
+
+                # cmdline = cmdline.encode(locale.getdefaultlocale()[1])
 
                 if cmp(platform.system(), 'Windows') is 0:
                     # Start server under the Windows
-                    self.__process = Popen(cmdline,
-                                           close_fds=True,
+                    self.__process = Popen(cmdline.encode("utf-8"),
                                            cwd=ConfigManager.get_config("server_path"),
                                            creationflags=CREATE_NEW_CONSOLE)
                 else:
