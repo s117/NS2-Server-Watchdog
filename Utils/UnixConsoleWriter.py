@@ -35,10 +35,9 @@ class UnixConsoleWriter(ConsoleWriter):
         fg = color & 0x7
         intense = (color >> 3) & 0x1
 
-        esc_seq = "\033[%d;%s;%sm" % (
+        esc_seq = "\033[%d;%sm" % (
             intense,
-            UnixConsoleWriter.__FG_TABLE[fg],
-            UnixConsoleWriter.__BG_TABLE[bg]
+            UnixConsoleWriter.__FG_TABLE[fg]
         )
 
         if handle is UnixConsoleWriter.std_out_handle:
