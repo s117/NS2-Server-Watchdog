@@ -78,10 +78,11 @@ class UnixConsoleWriter(ConsoleWriter):
         self.reset_color(self.std_out_handle)
 
     def normal(self, text):
-        # white
+        # bright white
         color = (UnixConsoleWriter.__FOREGROUND_RED |
                  UnixConsoleWriter.__FOREGROUND_GREEN |
-                 UnixConsoleWriter.__FOREGROUND_BLUE)
+                 UnixConsoleWriter.__FOREGROUND_BLUE |
+                 UnixConsoleWriter.__FOREGROUND_INTENSITY)
 
         self.set_output_color(color, self.std_out_handle)
         sys.stdout.write(text)

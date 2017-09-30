@@ -17,12 +17,6 @@ if cmp(platform.system(), 'Windows') is 0:
 else:
     from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
 
-
-
-
-
-
-
 VERBOSE_LEVEL = 0
 ExitFlag = False
 
@@ -195,6 +189,8 @@ class ServerProcessHandler:
             Logger.fatal("Fail to start server, because executable file '%s' does not exist" % executable_path)
 
         param.append(executable_path)
+        if not os.access(executable_path, os.X_OK):
+            Logger.fatal("You have no execute privilege on server's executable image: %s", executable_path)
 
         param.append("-config_path")
         param.append("" + ConfigManager.get_config("server_config_cfg_dir") + "")
@@ -234,15 +230,25 @@ class ServerProcessHandler:
                         p = "\"" + p + "\""
                     cmdline = cmdline + p + " "
 
+                Logger.info("Starting server using cmdline:'%s'" % cmdline)
+
                 if cmp(platform.system(), 'Windows') is 0:
+                    # Start server under the Windows
                     self.__process = Popen(cmdline,
-                                       close_fds=True,
-                                       cwd=ConfigManager.get_config("server_path"),
-                                       creationflags=CREATE_NEW_CONSOLE)
+                                           close_fds=True,
+                                           cwd=ConfigManager.get_config("server_path"),
+                                           creationflags=CREATE_NEW_CONSOLE)
                 else:
-                    self.__process = Popen(cmdline,
-                                       close_fds=True,
-                                       cwd=ConfigManager.get_config("server_path"))
+                    # Start server under the Linux
+                    with open(os.devnull, "w") as DEVNULL:
+                        self.__process = Popen(
+                            args=cmdline,
+                            shell=True,
+                            close_fds=True,
+                            stdin=DEVNULL,
+                            stdout=DEVNULL,
+                            stderr=DEVNULL,
+                            cwd=ConfigManager.get_config("server_path"))
 
                 self.__pid = self.__process.pid
                 self.__ps = psutil.Process(pid=self.__pid)
@@ -263,7 +269,7 @@ class ServerProcessHandler:
             except psutil.AccessDenied:
                 Logger.fatal("Access denied when try to control the server process (pid %d)" % self.__pid)
             else:
-                Logger.info("Server is running, pid=%d" % self.pid)
+                Logger.info("Server is running, pid=%d" % self.__pid)
 
             os.chdir(prev_dir)
 
@@ -302,7 +308,7 @@ class ServerProcessHandler:
         try:
             if (self.__pid is not -1) and \
                     (self.__process.poll() is None) and \
-                    (cmp(self.__ps.status(), "running") is 0):
+                    (self.__ps.is_running()):
                 return True
         except psutil.NoSuchProcess:
             pass

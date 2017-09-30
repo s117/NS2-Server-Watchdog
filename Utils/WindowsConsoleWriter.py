@@ -68,10 +68,11 @@ class WindowsConsoleWriter(ConsoleWriter):
         self.reset_color(self.std_out_handle)
 
     def normal(self, text):
-        # white
+        # bright white
         color = (WindowsConsoleWriter.__FOREGROUND_RED |
                  WindowsConsoleWriter.__FOREGROUND_GREEN |
-                 WindowsConsoleWriter.__FOREGROUND_BLUE)
+                 WindowsConsoleWriter.__FOREGROUND_BLUE |
+                 WindowsConsoleWriter.__FOREGROUND_INTENSITY)
 
         self.set_output_color(color, self.std_out_handle)
         sys.stdout.write(text)
