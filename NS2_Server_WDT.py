@@ -7,7 +7,12 @@ import shlex
 import signal
 import sys
 import time
-from subprocess import Popen, CREATE_NEW_CONSOLE
+
+from subprocess import Popen
+
+if cmp(platform.system(), 'Windows') is 0:
+    from subprocess import CREATE_NEW_CONSOLE
+
 
 import psutil
 
@@ -229,10 +234,15 @@ class ServerProcessHandler:
                         p = "\"" + p + "\""
                     cmdline = cmdline + p + " "
 
-                self.__process = Popen(cmdline,
+                if cmp(platform.system(), 'Windows') is 0:
+                    self.__process = Popen(cmdline,
                                        close_fds=True,
                                        cwd=ConfigManager.get_config("server_path"),
                                        creationflags=CREATE_NEW_CONSOLE)
+                else:
+                    self.__process = Popen(cmdline,
+                                       close_fds=True,
+                                       cwd=ConfigManager.get_config("server_path"))
 
                 self.__pid = self.__process.pid
                 self.__ps = psutil.Process(pid=self.__pid)
@@ -252,6 +262,8 @@ class ServerProcessHandler:
                 Logger.fatal("Fail to start the server, please check the setting or the server's integrity")
             except psutil.AccessDenied:
                 Logger.fatal("Access denied when try to control the server process (pid %d)" % self.__pid)
+            else:
+                Logger.info("Server is running, pid=%d" % self.pid)
 
             os.chdir(prev_dir)
 
