@@ -1,4 +1,10 @@
-# -*- encoding:UTF-8 -*-
+#  -*- encoding:UTF-8 -*-
+#
+# NS2 Server Watch dog -- a Natural Selection 2 server monitoring script
+#
+# Wrote by John <admin@0x10c.pw>
+# MIT License.
+
 import datetime
 import json
 import os
@@ -7,15 +13,16 @@ import shlex
 import signal
 import sys
 import time
-import psutil
-
 from subprocess import Popen
+
+import psutil
 
 if cmp(platform.system(), 'Windows') is 0:
     from Utils.WindowsConsoleWriter import WindowsConsoleWriter as PlatformConsoleWriter
     from subprocess import CREATE_NEW_CONSOLE
 else:
     from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
+
 
 VERBOSE_LEVEL = 0
 ExitFlag = False
@@ -78,15 +85,16 @@ class ConfigManager:
         # Monitoring interval in second.
         "monitor_interval": 1,
 
-        # Check whether the lua engine is still alive or not by utilizing "ping_mod" (mod_id=1B2340F1).
+        # Check whether the lua engine is still alive or not by utilizing the helper mod (mod_id=44AE3979).
         "check_lua_engine_status": True,
 
         # Lua engine unresponsive tolerance (in seconds).
-        # PS: DO NOT set it too low, because ping_mode's record will stop update during the initializing & map changing.
+        # PS: DO NOT set it too low, because the helper mod will stop update the record during the initializing &  
+        #     map changing. If the threshold is too low, the server would get interrupted when performing those action.
         "lua_engine_no_response_threshold": 60,
 
-        # Date format of ping_mod's output.
-        "format_ping_mod_record": "%m/%d/%y %H:%M:%S",
+        # Date format of the helper mod's output.
+        "format_helper_mod_record": "%m/%d/%y %H:%M:%S",
 
         # Dump the memory before restart the unresponsive server.
         "create_mem_dump": False,
@@ -101,11 +109,11 @@ class ConfigManager:
         # (in byte). Set it to 0 if you always want the restart to get triggered.
         "daily_restart_vms_threshold": 768 * 1024 * 1024,
 
-        # NS2Server's root path.
-        "server_path": "C:/NS2Server",
+        # NS2Server's root path, recommending using a absolute path.
+        "server_path": "C:/NS2Server",  # or "/opt/NS2Server/serverfiles" for example
 
         # The name of the server's executable file.
-        "server_executable_image": "Server.exe",
+        "server_executable_image": "Server.exe",  # or "server_linux32" for example
 
         # Path to server config dir. If you use the relative path, it should be relative to the server's root
         "server_config_cfg_dir": "./configs/ns2server_configs",
@@ -118,7 +126,7 @@ class ConfigManager:
 
         # Additional launch option.
         "server_config_extra_parameter":
-            "-name Test -console -port 27015  -map 'ns2_veil' -limit 20 -speclimit 4 -mods '1B2340F1'",
+            "-name 'Test' -console -port 27015  -map 'ns2_veil' -limit 20 -speclimit 4 -mods '44AE3979'",
 
         # Output verbose level, 0 for lowest and 2 for highest.
         "verbose_level": 2
@@ -216,7 +224,7 @@ class ServerProcessHandler:
         self.start_server()
 
     def start_server(self):
-        self.__force_update_ping_mode_data()
+        self.__force_update_helper_mod_record()
         if not self.is_running():
             self.__archive_log_and_dmp()
 
@@ -331,8 +339,8 @@ class ServerProcessHandler:
                 }
 
     @staticmethod
-    def __force_update_ping_mode_data():
-        # The ping_mode's record need to be updated before start because otherwise
+    def __force_update_helper_mod_record():
+        # The helper mod's record need to be updated before start because otherwise
         # the launching progress will be disturbed by the lua engine check.
         DEFAULT_PING_MODE_NAME = "server_modding_ping.txt"
         ABS_SERVER_CONFIG_DIR = convert_rel_path_to_abs_path(ConfigManager.get_config("server_path"),
@@ -341,13 +349,13 @@ class ServerProcessHandler:
         try:
             expire_time = time.time() + ConfigManager.get_config("lua_engine_no_response_threshold")
 
-            st = time.strftime(ConfigManager.get_config("format_ping_mod_record"), time.localtime(expire_time))
+            st = time.strftime(ConfigManager.get_config("format_helper_mod_record"), time.localtime(expire_time))
             with open(ABS_PATH_PING_MODE_TXT, 'w') as f:
                 f.write(st)
         except IOError:
-            Logger.fatal("Fail to force update the ping_mode record, check user permission")
+            Logger.fatal("Fail to force update the helper mod's record, check user permission")
         else:
-            Logger.verbose("Force updated the ping_mod record, value: '%s'" % st)
+            Logger.verbose("Force updated the helper mod's record, value: '%s'" % st)
 
     @staticmethod
     def __archive_log_and_dmp():
@@ -397,10 +405,10 @@ class ServerWatchDog:
         self.__is_check_lua_engine_status = ConfigManager.get_config("check_lua_engine_status")
         abspath_server_config = convert_rel_path_to_abs_path(ConfigManager.get_config("server_path"),
                                                              ConfigManager.get_config("server_config_cfg_dir"))
-        self.__abspath_ping_mod_output = abspath_server_config + "/server_modding_ping.txt"
+        self.__abspath_helper_mod_output = abspath_server_config + "/server_modding_ping.txt"
         self.__lua_engine_no_response_threshold = ConfigManager.get_config("lua_engine_no_response_threshold")
-        self.__ping_mod_record_pattern = ConfigManager.get_config("format_ping_mod_record")
-        self.__ping_mod_output_invalid_cnt = 0
+        self.__helper_mod_record_pattern = ConfigManager.get_config("format_helper_mod_record")
+        self.__helper_mod_output_invalid_cnt = 0
 
     def run_server(self):
         sleep_sec = ConfigManager.get_config("monitor_interval")
@@ -453,42 +461,42 @@ class ServerWatchDog:
 
         st = "uninitialized"
         try:
-            with open(self.__abspath_ping_mod_output, 'r') as f:
+            with open(self.__abspath_helper_mod_output, 'r') as f:
                 st = f.readline()
-            last_update_time = datetime.datetime.strptime(st, self.__ping_mod_record_pattern)
+            last_update_time = datetime.datetime.strptime(st, self.__helper_mod_record_pattern)
             last_update_timestamp = time.mktime(last_update_time.timetuple())
-            self.__ping_mod_output_invalid_cnt = 0
+            self.__helper_mod_output_invalid_cnt = 0
         except IOError:
-            self.__ping_mod_output_invalid_cnt = self.__ping_mod_output_invalid_cnt + 1
-            if self.__ping_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
+            self.__helper_mod_output_invalid_cnt = self.__helper_mod_output_invalid_cnt + 1
+            if self.__helper_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
                 Logger.warn(
-                    ("Lua engine check: Fail to open ping_mod's output: '%s' (%d/%d). " +
+                    ("Lua engine check: Fail to open helper mod's output: '%s' (%d/%d). " +
                      "Assume engine is good") % (
-                        self.__abspath_ping_mod_output,
-                        self.__ping_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
+                        self.__abspath_helper_mod_output,
+                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
                 return False
             else:
                 Logger.warn(
-                    ("Lua engine check: Fail to open ping_mod's output: '%s' (%d/%d). " +
+                    ("Lua engine check: Fail to open helper mod's output: '%s' (%d/%d). " +
                      "Assume engine is down") % (
-                        self.__abspath_ping_mod_output,
-                        self.__ping_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
+                        self.__abspath_helper_mod_output,
+                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
                 return True
         except ValueError:
-            self.__ping_mod_output_invalid_cnt = self.__ping_mod_output_invalid_cnt + 1
-            if self.__ping_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
+            self.__helper_mod_output_invalid_cnt = self.__helper_mod_output_invalid_cnt + 1
+            if self.__helper_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
                 Logger.warn(
-                    ("Lua engine check: Fail to parse the ping_mod's record '%s' with pattern %s (%d/%d). " +
+                    ("Lua engine check: Fail to parse the helper mod's record '%s' with pattern %s (%d/%d). " +
                      "Assume engine is good") % (
-                        st, self.__ping_mod_record_pattern,
-                        self.__ping_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
+                        st, self.__helper_mod_record_pattern,
+                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
                 return False
             else:
                 Logger.warn(
-                    ("Lua engine check: Fail to parse the ping_mod's record '%s' with pattern %s (%d/%d). " +
+                    ("Lua engine check: Fail to parse the helper mod's record '%s' with pattern %s (%d/%d). " +
                      "Assume engine is down") % (
-                        st, self.__ping_mod_record_pattern,
-                        self.__ping_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
+                        st, self.__helper_mod_record_pattern,
+                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
                 return True
         else:
             engine_frozen_time = int(time.time() - last_update_timestamp)
