@@ -7,16 +7,21 @@ import shlex
 import signal
 import sys
 import time
+import psutil
 
 from subprocess import Popen
 
 if cmp(platform.system(), 'Windows') is 0:
+    from Utils.WindowsConsoleWriter import WindowsConsoleWriter as PlatformConsoleWriter
     from subprocess import CREATE_NEW_CONSOLE
+else:
+    from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
 
 
-import psutil
 
-from ConsolePrinter import ConsoleWriter, WindowsConsoleWriter, UnixConsoleWriter
+
+
+
 
 VERBOSE_LEVEL = 0
 ExitFlag = False
@@ -24,17 +29,12 @@ ExitFlag = False
 
 class Logger:
     __TIME_LABEL_PATTERN = '%m/%d/%y-%H:%M:%S'
-    __console_writer = ConsoleWriter()
+    __console_writer = PlatformConsoleWriter()
 
     @staticmethod
     def init_logger():
         global VERBOSE_LEVEL
         VERBOSE_LEVEL = ConfigManager.get_config("verbose_level")
-
-        if cmp(platform.system(), 'Windows') is 0:
-            Logger.__console_writer = WindowsConsoleWriter()
-        else:
-            Logger.__console_writer = UnixConsoleWriter()
 
         Logger.__console_writer.init()
 
