@@ -2,6 +2,7 @@
 import datetime
 import json
 import os
+import platform
 import shlex
 import signal
 import sys
@@ -10,12 +11,27 @@ from subprocess import Popen, CREATE_NEW_CONSOLE
 
 import psutil
 
+from ConsolePrinter import ConsoleWriter, WindowsConsoleWriter, UnixConsoleWriter
+
 VERBOSE_LEVEL = 0
 ExitFlag = False
 
 
 class Logger:
     __TIME_LABEL_PATTERN = '%m/%d/%y-%H:%M:%S'
+    __console_writer = ConsoleWriter()
+
+    @staticmethod
+    def init_logger():
+        global VERBOSE_LEVEL
+        VERBOSE_LEVEL = ConfigManager.get_config("verbose_level")
+
+        if cmp(platform.system(), 'Windows') is 0:
+            Logger.__console_writer = WindowsConsoleWriter()
+        else:
+            Logger.__console_writer = UnixConsoleWriter()
+
+        Logger.__console_writer.init()
 
     def __init__(self):
         raise NotImplementedError("This class should never be instantiated.")
@@ -23,35 +39,35 @@ class Logger:
     @staticmethod
     def debug(text):
         if VERBOSE_LEVEL >= 2:
-            sys.stdout.write(
+            Logger.__console_writer.debug(
                 "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                      "DEBUG", str(text)))
 
     @staticmethod
     def verbose(text):
         if VERBOSE_LEVEL >= 1:
-            sys.stdout.write(
+            Logger.__console_writer.verbose(
                 "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                      "VERBOSE", str(text)))
 
     @staticmethod
     def info(text):
-        sys.stdout.write(
+        Logger.__console_writer.normal(
             "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                  "INFO", str(text)))
 
     @staticmethod
     def warn(text):
-        sys.stderr.write(
+        Logger.__console_writer.warn(
             "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                  "WARN", str(text)))
 
     @staticmethod
     def fatal(text, exitcode=-1):
-        sys.stderr.write(
+        Logger.__console_writer.error(
             "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                  "FATAL", str(text)))
-        sys.stderr.write(
+        Logger.__console_writer.error(
             "[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                  "FATAL", ("Program terminated, exit code: %d." % exitcode)))
         exit(exitcode)
@@ -503,5 +519,6 @@ def signal_handler(sig, frame):
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    VERBOSE_LEVEL = ConfigManager.get_config("verbose_level")
+    Logger.init_logger()
+
     main(sys.argv)
