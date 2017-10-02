@@ -324,8 +324,6 @@ class ServerProcessHandler:
             self.__ps = None
             self.__ps_cmdline = None
 
-            self.__archive_log_and_dmp()
-
     def is_running(self):
         try:
             if (self.__pid is not -1) and \
