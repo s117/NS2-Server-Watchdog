@@ -50,6 +50,7 @@ class WindowsConsoleWriter(ConsoleWriter):
                  WindowsConsoleWriter.__FOREGROUND_BLUE)
 
         self.set_output_color(color, self.std_out_handle)
+        text = self.encode_text(text)
         sys.stdout.write(text)
         self.reset_color(self.std_out_handle)
 
@@ -60,6 +61,7 @@ class WindowsConsoleWriter(ConsoleWriter):
                  WindowsConsoleWriter.__FOREGROUND_INTENSITY)
 
         self.set_output_color(color, self.std_out_handle)
+        text = self.encode_text(text)
         sys.stdout.write(text)
         self.reset_color(self.std_out_handle)
 
@@ -71,6 +73,7 @@ class WindowsConsoleWriter(ConsoleWriter):
                  WindowsConsoleWriter.__FOREGROUND_INTENSITY)
 
         self.set_output_color(color, self.std_out_handle)
+        text = self.encode_text(text)
         sys.stdout.write(text)
         self.reset_color(self.std_out_handle)
 
@@ -81,6 +84,7 @@ class WindowsConsoleWriter(ConsoleWriter):
                  WindowsConsoleWriter.__FOREGROUND_INTENSITY)
 
         self.set_output_color(color, self.std_err_handle)
+        text = self.encode_text(text)
         sys.stderr.write(text)
         self.reset_color(self.std_err_handle)
 
@@ -90,5 +94,6 @@ class WindowsConsoleWriter(ConsoleWriter):
                  WindowsConsoleWriter.__FOREGROUND_INTENSITY)
 
         self.set_output_color(color, self.std_err_handle)
+        text = self.encode_text(text)
         sys.stderr.write(text)
         self.reset_color(self.std_err_handle)
