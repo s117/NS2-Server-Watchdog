@@ -30,6 +30,7 @@ ExitFlag = False
 class Logger:
     __TIME_LABEL_PATTERN = '%m/%d/%y-%H:%M:%S'
     __console_writer = PlatformConsoleWriter()
+    __LINE_PATTERN = u"[%s] <%s>: %s\n"
 
     @staticmethod
     def init_logger():
@@ -44,37 +45,37 @@ class Logger:
     @staticmethod
     def debug(text):
         if VERBOSE_LEVEL >= 2:
-            Logger.__console_writer.debug(
-                u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                      "DEBUG", unicode(text)))
+            log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                                "DEBUG", unicode(text))
+            Logger.__console_writer.debug(log_line)
 
     @staticmethod
     def verbose(text):
         if VERBOSE_LEVEL >= 1:
-            Logger.__console_writer.verbose(
-                u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                      "VERBOSE", unicode(text)))
+            log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                                "VERBOSE", unicode(text))
+            Logger.__console_writer.verbose(log_line)
 
     @staticmethod
     def info(text):
-        Logger.__console_writer.normal(
-            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                  "INFO", unicode(text)))
+        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                            "INFO", unicode(text))
+        Logger.__console_writer.normal(log_line)
 
     @staticmethod
     def warn(text):
-        Logger.__console_writer.warn(
-            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                  "WARN", unicode(text)))
+        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                            "WARN", unicode(text))
+        Logger.__console_writer.warn(log_line)
 
     @staticmethod
     def fatal(text, exitcode=-1):
-        Logger.__console_writer.error(
-            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                  "FATAL", unicode(text)))
-        Logger.__console_writer.error(
-            u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                  "FATAL", (u"Program terminated, exit code: %d." % exitcode)))
+        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                            "FATAL", unicode(text))
+        Logger.__console_writer.error(log_line)
+        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                            "FATAL", (u"Program terminated, exit code: %d." % exitcode))
+        Logger.__console_writer.error(log_line)
         sys.exit(exitcode)
 
 
