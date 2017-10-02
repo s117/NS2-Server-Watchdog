@@ -420,6 +420,8 @@ class ServerWatchDog:
         self.__helper_mod_output_invalid_cnt = 0
 
     def run_server(self):
+        Logger.info("NS2 Server Watchdog script.")
+        Logger.info("Press Ctrl-C to terminate this script and the running server process.")
         sleep_sec = ConfigManager.get_config("monitor_interval")
         self.__server.start_server()
         while not ExitFlag:
