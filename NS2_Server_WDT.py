@@ -450,32 +450,34 @@ class ServerWatchDog:
         self.__server.stop_server()
 
     def __is_server_process_missing(self):
+        PREFIX_STRING = "Process monitor: "
         if self.__server.is_running():
-            Logger.debug("Process monitor: process alive")
+            Logger.debug(PREFIX_STRING + "process alive")
             return False
         else:
-            Logger.info("Process monitor: unexpected server shutdown detected, restoring...")
+            Logger.info(PREFIX_STRING + "unexpected server shutdown detected, restoring...")
             return True
 
     def __is_need_daily_restart(self):
         if not self.__is_daily_restart_server:
             return False
 
+        PREFIX_STRING = "Daily restart: "
         if time.time() >= self.__next_daily_restart_trigger_time:
-            Logger.info("Daily restart: now is the time to restart")
+            Logger.info(PREFIX_STRING + "now is the time to restart")
             self.__next_daily_restart_trigger_time = self.__calc_next_daily_restart_trigger_timestamp()
             process_info = self.__server.get_info()
             if process_info is not None:
                 if process_info["vms"] < self.__daily_restart_vms_threshold:
-                    Logger.info("Daily restart: server will not get restarted (vms/%d < threshold/%d" % (
+                    Logger.info(PREFIX_STRING + "server will not get restarted (vms/%d < threshold/%d" % (
                         process_info["vms"], self.__daily_restart_vms_threshold))
                     return False
                 else:
-                    Logger.info("Daily restart: server will get restarted (vms/%d >= threshold/%d)" % (
+                    Logger.info(PREFIX_STRING + "server will get restarted (vms/%d >= threshold/%d)" % (
                         process_info["vms"], self.__daily_restart_vms_threshold))
                     return True
             else:
-                Logger.info("Daily restart: server will get restarted (server process stopped)")
+                Logger.info(PREFIX_STRING + "server will get restarted (server process stopped)")
                 return True
         else:  # not now
             return False
@@ -485,56 +487,59 @@ class ServerWatchDog:
             return False
 
         st = "uninitialized"
+        is_dead = False
+        exception_flag = False
+        exception_msg = ""
+        PREFIX_STRING = "Lua engine check: "
         try:
             with open(self.__abspath_helper_mod_output, 'r') as f:
                 st = f.readline()
             last_update_time = datetime.datetime.strptime(st, self.__helper_mod_record_pattern)
             last_update_timestamp = time.mktime(last_update_time.timetuple())
-            self.__helper_mod_output_invalid_cnt = 0
         except IOError:
-            self.__helper_mod_output_invalid_cnt = self.__helper_mod_output_invalid_cnt + 1
-            if self.__helper_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
-                Logger.warn(
-                    ("Lua engine check: Fail to open helper mod's output: '%s' (%d/%d). " +
-                     "Assume engine is good") % (
-                        self.__abspath_helper_mod_output,
-                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
-                return False
-            else:
-                Logger.warn(
-                    ("Lua engine check: Fail to open helper mod's output: '%s' (%d/%d). " +
-                     "Assume engine is down") % (
-                        self.__abspath_helper_mod_output,
-                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
-                return True
+            exception_flag = True
+            exception_msg = "Fail to open helper mod's output: '%s'." % (
+                self.__abspath_helper_mod_output)
         except ValueError:
-            self.__helper_mod_output_invalid_cnt = self.__helper_mod_output_invalid_cnt + 1
-            if self.__helper_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
-                Logger.warn(
-                    ("Lua engine check: Fail to parse the helper mod's record '%s' with pattern %s (%d/%d). " +
-                     "Assume engine is good") % (
-                        st, self.__helper_mod_record_pattern,
-                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
-                return False
-            else:
-                Logger.warn(
-                    ("Lua engine check: Fail to parse the helper mod's record '%s' with pattern %s (%d/%d). " +
-                     "Assume engine is down") % (
-                        st, self.__helper_mod_record_pattern,
-                        self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold))
-                return True
+            exception_flag = True
+            exception_msg = "Fail to parse the helper mod's record '%s' with pattern %s." % (
+                st, self.__helper_mod_record_pattern)
+        except TypeError:
+            exception_flag = True
+            exception_msg = "Fail to parse the helper mod's record because the file includes invalid character."
         else:
+            # successfully parsed the helper mod's record
+            self.__helper_mod_output_invalid_cnt = 0
             engine_frozen_time = int(time.time() - last_update_timestamp)
             if engine_frozen_time > self.__lua_engine_no_response_threshold:
                 Logger.info(
-                    "Lua engine check: Lua engine has frozen for %d second(s), the server will be restarted" % (
-                        engine_frozen_time))
-                return True
+                    PREFIX_STRING +
+                    ("Lua engine has frozen for %d second(s), the server will be restarted" % engine_frozen_time))
+                is_dead = True
             else:
                 Logger.debug(
-                    "Lua engine check: OK, frozen_time = %d, threshold = %d" % (
-                        engine_frozen_time, self.__lua_engine_no_response_threshold))
-                return False
+                    PREFIX_STRING +
+                    ("Lua engine check: OK, frozen_time = %d, threshold = %d" % (
+                        engine_frozen_time, self.__lua_engine_no_response_threshold)))
+                is_dead = False
+        finally:
+            if exception_flag:
+                # fail to parse the helper mod's record
+                self.__helper_mod_output_invalid_cnt = self.__helper_mod_output_invalid_cnt + 1
+                if self.__helper_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
+                    Logger.warn(
+                        PREFIX_STRING + exception_msg +
+                        (" Assume engine is good (%d/%d)" % (
+                            self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold)))
+                    is_dead = False
+                else:
+                    Logger.warn(
+                        PREFIX_STRING + exception_msg +
+                        (" Assume engine is down (%d/%d)" % (
+                            self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold)))
+                    is_dead = True
+
+        return is_dead
 
     def __calc_next_daily_restart_trigger_timestamp(self):
         time_now_timestamp = time.time()
