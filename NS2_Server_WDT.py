@@ -44,46 +44,48 @@ class Logger:
         raise NotImplementedError("This class should never be instantiated.")
 
     @staticmethod
+    def __gen_log_line(str_level, text):
+        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
+                                            str_level, unicode(text))
+        log_line = unicode(log_line).encode("utf-8")
+        return log_line
+
+    @staticmethod
     def debug(text):
         if VERBOSE_LEVEL >= 2:
-            log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                                "DEBUG", unicode(text))
+            log_line = Logger.__gen_log_line("DEBUG", text)
             Logger.__console_writer.debug(log_line)
             Logger.__file_logger.log(log_line)
 
     @staticmethod
     def verbose(text):
         if VERBOSE_LEVEL >= 1:
-            log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                                "VERBOSE", unicode(text))
+            log_line = Logger.__gen_log_line("VERBOSE", text)
             Logger.__console_writer.verbose(log_line)
             Logger.__file_logger.log(log_line)
 
     @staticmethod
     def info(text):
-        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                            "INFO", unicode(text))
+        log_line = Logger.__gen_log_line("INFO", text)
         Logger.__console_writer.normal(log_line)
         Logger.__file_logger.log(log_line)
 
     @staticmethod
     def warn(text):
-        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                            "WARN", unicode(text))
+        log_line = Logger.__gen_log_line("WARN", text)
         Logger.__console_writer.warn(log_line)
         Logger.__file_logger.log(log_line)
 
     @staticmethod
     def fatal(text, exitcode=-1):
-        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                            "FATAL", unicode(text))
+        log_line = Logger.__gen_log_line("FATAL", text)
         Logger.__console_writer.error(log_line)
         Logger.__file_logger.log(log_line)
 
-        log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
-                                            "FATAL", (u"Program terminated, exit code: %d." % exitcode))
+        log_line = Logger.__gen_log_line("FATAL", ("Program terminated, exit code: %d." % exitcode))
         Logger.__console_writer.error(log_line)
         Logger.__file_logger.log(log_line)
+
         sys.exit(exitcode)
 
 
