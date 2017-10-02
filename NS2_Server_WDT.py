@@ -182,6 +182,8 @@ class ServerProcessHandler:
         if not os.path.isabs(ConfigManager.get_config("server_path")):
             Logger.warn("You are using relative path '%s' to specify the server root" % (
                 ConfigManager.get_config("server_path")))
+            Logger.warn("DOUBLE CHECK: The absolute path for the server root is '%s'. Is that correct?" % (
+                os.path.abspath(ConfigManager.get_config("server_path"))))
 
         prev_dir = os.getcwd()
         os.chdir(ConfigManager.get_config("server_path"))
@@ -195,6 +197,9 @@ class ServerProcessHandler:
                     "Fail to start server, because directory '%s' does not exist (value of '%s')" % (vd, kd))
             if not os.path.isabs(vd):
                 Logger.warn("You are using relative path '%s' for config '%s')" % (vd, kd))
+
+                Logger.warn("DOUBLE CHECK: The absolute path for the config '%s' is '%s'. Is that correct?" % (
+                    kd, convert_rel_path_to_abs_path(ConfigManager.get_config("server_path"), vd)))
         executable_path = ConfigManager.get_config("server_path") + "/" + ConfigManager.get_config(
             "server_executable_image")
         if not os.path.isfile(executable_path):
