@@ -19,7 +19,7 @@ import psutil
 
 if cmp(platform.system(), 'Windows') is 0:
     from Utils.WindowsConsoleWriter import WindowsConsoleWriter as PlatformConsoleWriter
-    from subprocess import CREATE_NEW_CONSOLE
+    from subprocess import CREATE_NEW_PROCESS_GROUP
 else:
     from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
 
@@ -125,7 +125,7 @@ class ConfigManager:
 
         # Additional launch option.
         "server_config_extra_parameter":
-            "-name 'Test' -console -port 27015  -map 'ns2_veil' -limit 20 -speclimit 4 -mods '44AE3979'",
+            "-name 'Test' -port 27015 -console -map 'ns2_veil' -limit 20 -speclimit 4 -mods '44AE3979'",
 
         # Output verbose level, 0 for lowest and 2 for highest.
         "verbose_level": 2
@@ -247,15 +247,17 @@ class ServerProcessHandler:
                 Logger.info(u"Starting server using cmdline:'%s'" % cmdline)
 
                 # cmdline = cmdline.encode(locale.getdefaultlocale()[1])
-
-                if cmp(platform.system(), 'Windows') is 0:
-                    # Start server under the Windows
-                    self.__process = Popen(cmdline.encode("utf-8"),
-                                           cwd=ConfigManager.get_config("server_path"),
-                                           creationflags=CREATE_NEW_CONSOLE)
-                else:
-                    # Start server under the Linux
-                    with open(os.devnull, "w") as DEVNULL:
+                with open(os.devnull, "w") as DEVNULL:
+                    if cmp(platform.system(), 'Windows') is 0:
+                        # Start server under the Windows
+                        self.__process = Popen(cmdline.encode("utf-8"),
+                                               stdin=DEVNULL,
+                                               stdout=DEVNULL,
+                                               stderr=DEVNULL,
+                                               cwd=ConfigManager.get_config("server_path"),
+                                               creationflags=CREATE_NEW_PROCESS_GROUP)
+                    else:
+                        # Start server under the Linux
                         self.__process = Popen(
                             args=cmdline,
                             shell=True,
