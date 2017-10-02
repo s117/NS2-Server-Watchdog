@@ -75,7 +75,7 @@ class Logger:
         Logger.__console_writer.error(
             u"[%s] <%s>: %s\n" % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                   "FATAL", (u"Program terminated, exit code: %d." % exitcode)))
-        exit(exitcode)
+        sys.exit(exitcode)
 
 
 class ConfigManager:
