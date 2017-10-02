@@ -17,6 +17,8 @@ from subprocess import Popen
 
 import psutil
 
+from Utils.TextfileWriter import TextfileWriter
+
 if cmp(platform.system(), 'Windows') is 0:
     from Utils.WindowsConsoleWriter import WindowsConsoleWriter as PlatformConsoleWriter
     from subprocess import CREATE_NEW_PROCESS_GROUP
@@ -30,14 +32,13 @@ ExitFlag = False
 class Logger:
     __TIME_LABEL_PATTERN = '%m/%d/%y-%H:%M:%S'
     __console_writer = PlatformConsoleWriter()
+    __file_logger = TextfileWriter()
     __LINE_PATTERN = u"[%s] <%s>: %s\n"
 
     @staticmethod
     def init_logger():
         global VERBOSE_LEVEL
         VERBOSE_LEVEL = ConfigManager.get_config("verbose_level")
-
-        Logger.__console_writer.init()
 
     def __init__(self):
         raise NotImplementedError("This class should never be instantiated.")
@@ -48,6 +49,7 @@ class Logger:
             log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                                 "DEBUG", unicode(text))
             Logger.__console_writer.debug(log_line)
+            Logger.__file_logger.log(log_line)
 
     @staticmethod
     def verbose(text):
@@ -55,27 +57,33 @@ class Logger:
             log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                                 "VERBOSE", unicode(text))
             Logger.__console_writer.verbose(log_line)
+            Logger.__file_logger.log(log_line)
 
     @staticmethod
     def info(text):
         log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                             "INFO", unicode(text))
         Logger.__console_writer.normal(log_line)
+        Logger.__file_logger.log(log_line)
 
     @staticmethod
     def warn(text):
         log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                             "WARN", unicode(text))
         Logger.__console_writer.warn(log_line)
+        Logger.__file_logger.log(log_line)
 
     @staticmethod
     def fatal(text, exitcode=-1):
         log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                             "FATAL", unicode(text))
         Logger.__console_writer.error(log_line)
+        Logger.__file_logger.log(log_line)
+
         log_line = Logger.__LINE_PATTERN % (time.strftime(Logger.__TIME_LABEL_PATTERN, time.localtime(time.time())),
                                             "FATAL", (u"Program terminated, exit code: %d." % exitcode))
         Logger.__console_writer.error(log_line)
+        Logger.__file_logger.log(log_line)
         sys.exit(exitcode)
 
 
@@ -178,16 +186,18 @@ class ServerProcessHandler:
     __WAIT_TIME_BEFORE_GIVE_UP = 60
 
     def __init__(self):
-        if not os.path.isdir(ConfigManager.get_config("server_path")):
-            Logger.fatal("The root of NS2Server ('%s') does not exist" % ConfigManager.get_config("server_path"))
-        if not os.path.isabs(ConfigManager.get_config("server_path")):
-            Logger.warn("You are using relative path '%s' to specify the server root" % (
-                ConfigManager.get_config("server_path")))
-            Logger.warn("DOUBLE CHECK: The absolute path for the server root is '%s'. Is that correct?" % (
-                os.path.abspath(ConfigManager.get_config("server_path"))))
+        self.__server_root = ConfigManager.get_config("server_path")
+        if not os.path.isabs(self.__server_root):
+            Logger.warn("You are using relative path '%s' to specify the server root" % self.__server_root)
+            self.__server_root = os.path.abspath(self.__server_root)
+            Logger.warn(
+                "DOUBLE CHECK: The absolute path for the server root is '%s'. Is that correct?" % self.__server_root)
+
+        if not os.path.isdir(self.__server_root):
+            Logger.fatal("The root of NS2Server ('%s') does not exist" % self.__server_root)
 
         prev_dir = os.getcwd()
-        os.chdir(ConfigManager.get_config("server_path"))
+        os.chdir(self.__server_root)
 
         param = []
         key_dir = ["server_config_cfg_dir", "server_config_log_dir", "server_config_mod_dir"]
@@ -200,15 +210,14 @@ class ServerProcessHandler:
                 Logger.warn("You are using relative path '%s' for config '%s')" % (vd, kd))
 
                 Logger.warn("DOUBLE CHECK: The absolute path for the config '%s' is '%s'. Is that correct?" % (
-                    kd, convert_rel_path_to_abs_path(ConfigManager.get_config("server_path"), vd)))
-        executable_path = ConfigManager.get_config("server_path") + "/" + ConfigManager.get_config(
-            "server_executable_image")
+                    kd, convert_rel_path_to_abs_path(self.__server_root, vd)))
+        executable_path = self.__server_root + "/" + ConfigManager.get_config("server_executable_image")
         if not os.path.isfile(executable_path):
             Logger.fatal("Fail to start server, because executable file '%s' does not exist" % executable_path)
 
         param.append(executable_path)
         if not os.access(executable_path, os.X_OK):
-            Logger.fatal("You have no execute privilege on server's executable image: %s", executable_path)
+            Logger.fatal("You have no execute privilege on server's executable image: %s" % executable_path)
 
         param.append("-config_path")
         param.append(ConfigManager.get_config("server_config_cfg_dir"))
@@ -229,6 +238,9 @@ class ServerProcessHandler:
 
         os.chdir(prev_dir)
 
+    def get_server_abs_root(self):
+        return self.__server_root
+
     def restart_server(self):
         self.stop_server()
         self.start_server()
@@ -239,7 +251,7 @@ class ServerProcessHandler:
             self.__archive_log_and_dmp()
 
             prev_dir = os.getcwd()
-            os.chdir(ConfigManager.get_config("server_path"))
+            os.chdir(self.get_server_abs_root())
 
             try:
                 cmdline = u""
@@ -260,7 +272,7 @@ class ServerProcessHandler:
                                                stdin=DEVNULL,
                                                stdout=DEVNULL,
                                                stderr=DEVNULL,
-                                               cwd=ConfigManager.get_config("server_path"),
+                                               cwd=self.get_server_abs_root(),
                                                creationflags=CREATE_NEW_PROCESS_GROUP)
                     else:
                         # Start server under the Linux
@@ -271,7 +283,7 @@ class ServerProcessHandler:
                             stdin=DEVNULL,
                             stdout=DEVNULL,
                             stderr=DEVNULL,
-                            cwd=ConfigManager.get_config("server_path"))
+                            cwd=self.get_server_abs_root())
 
                 self.__pid = self.__process.pid
                 self.__ps = psutil.Process(pid=self.__pid)
@@ -351,12 +363,11 @@ class ServerProcessHandler:
                     "create_time": self.__ps_create_time,
                 }
 
-    @staticmethod
-    def __force_update_helper_mod_record():
+    def __force_update_helper_mod_record(self):
         # The helper mod's record need to be updated before start because otherwise
         # the launching progress will be disturbed by the lua engine check.
         DEFAULT_PING_MODE_NAME = "server_modding_ping.txt"
-        ABS_SERVER_CONFIG_DIR = convert_rel_path_to_abs_path(ConfigManager.get_config("server_path"),
+        ABS_SERVER_CONFIG_DIR = convert_rel_path_to_abs_path(self.get_server_abs_root(),
                                                              ConfigManager.get_config("server_config_cfg_dir"))
         ABS_PATH_PING_MODE_TXT = ABS_SERVER_CONFIG_DIR + "/" + DEFAULT_PING_MODE_NAME
         try:
@@ -370,15 +381,14 @@ class ServerProcessHandler:
         else:
             Logger.verbose("Force updated the helper mod's record, value: '%s'" % st)
 
-    @staticmethod
-    def __archive_log_and_dmp():
+    def __archive_log_and_dmp(self):
         DEFAULT_LOG_FILE_NAME = "log-Server.txt"
         DEFAULT_DUMP_FILE_NAME = "lastcrash.dmp"
 
         time_label = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime(time.time()))
 
         prev_dir = os.getcwd()
-        os.chdir(ConfigManager.get_config("server_path"))
+        os.chdir(self.get_server_abs_root())
         os.chdir(ConfigManager.get_config("server_config_log_dir"))
 
         try:
@@ -386,7 +396,7 @@ class ServerProcessHandler:
                 os.rename(DEFAULT_DUMP_FILE_NAME, time_label + "_" + DEFAULT_DUMP_FILE_NAME)
                 Logger.verbose("Archived the crash dump: '%s' -> '%s'" % (
                     DEFAULT_DUMP_FILE_NAME, time_label + "_" + DEFAULT_DUMP_FILE_NAME))
-        except IOError:
+        except Exception:
             Logger.fatal("Fail to archive the crash dump file. (Maybe the last server process is still running?)")
 
         try:
@@ -394,7 +404,7 @@ class ServerProcessHandler:
                 os.rename(DEFAULT_LOG_FILE_NAME, time_label + "_" + DEFAULT_LOG_FILE_NAME)
                 Logger.verbose("Archived the server log: '%s' -> '%s'" % (
                     DEFAULT_LOG_FILE_NAME, time_label + "_" + DEFAULT_LOG_FILE_NAME))
-        except IOError:
+        except Exception:
             Logger.fatal("Fail to archive the server log file. (Maybe the last server process is still running?)")
         os.chdir(prev_dir)
 
@@ -416,7 +426,7 @@ class ServerWatchDog:
         self.__next_daily_restart_trigger_time = self.__calc_next_daily_restart_trigger_timestamp()
 
         self.__is_check_lua_engine_status = ConfigManager.get_config("check_lua_engine_status")
-        abspath_server_config = convert_rel_path_to_abs_path(ConfigManager.get_config("server_path"),
+        abspath_server_config = convert_rel_path_to_abs_path(self.__server.get_server_abs_root(),
                                                              ConfigManager.get_config("server_config_cfg_dir"))
         self.__abspath_helper_mod_output = abspath_server_config + "/server_modding_ping.txt"
         self.__lua_engine_no_response_threshold = ConfigManager.get_config("lua_engine_no_response_threshold")

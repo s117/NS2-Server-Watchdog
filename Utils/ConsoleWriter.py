@@ -3,8 +3,6 @@ import sys
 
 
 class ConsoleWriter:
-    def init(self):
-        pass
 
     def debug(self, text):
         sys.stdout.write(text)

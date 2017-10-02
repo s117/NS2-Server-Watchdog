@@ -7,7 +7,8 @@ from ConsoleWriter import ConsoleWriter
 
 class WindowsConsoleWriter(ConsoleWriter):
     def __init__(self):
-        self.init()
+        self.reset_color(self.std_out_handle)
+        self.reset_color(self.std_err_handle)
 
     __STD_INPUT_HANDLE = -10
     __STD_OUTPUT_HANDLE = -11
@@ -42,11 +43,6 @@ class WindowsConsoleWriter(ConsoleWriter):
             WindowsConsoleWriter.__FOREGROUND_GREEN |
             WindowsConsoleWriter.__FOREGROUND_BLUE,
             handle)
-
-    def init(self):
-        self.reset_color(self.std_out_handle)
-        self.reset_color(self.std_err_handle)
-        pass
 
     def debug(self, text):
         # dark green

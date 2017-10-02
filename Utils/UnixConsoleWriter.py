@@ -6,7 +6,8 @@ from ConsoleWriter import ConsoleWriter
 
 class UnixConsoleWriter(ConsoleWriter):
     def __init__(self):
-        self.init()
+        self.reset_color(self.std_out_handle)
+        self.reset_color(self.std_err_handle)
 
     __FOREGROUND_BLACK = 0x0
     __FOREGROUND_BLUE = 0x01  # text color contains blue.
@@ -51,11 +52,6 @@ class UnixConsoleWriter(ConsoleWriter):
             sys.stdout.write('\033[0m')
         else:
             sys.stderr.write('\033[0m')
-
-    def init(self):
-        self.reset_color(self.std_out_handle)
-        self.reset_color(self.std_err_handle)
-        pass
 
     def debug(self, text):
         # dark green
