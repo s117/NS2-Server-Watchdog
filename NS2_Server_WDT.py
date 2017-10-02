@@ -125,7 +125,7 @@ class ConfigManager:
 
         # Additional launch option.
         "server_config_extra_parameter":
-            "-name 'Test' -port 27015 -console -map 'ns2_veil' -limit 20 -speclimit 4 -mods '44AE3979'",
+            "-name 'Test' -port 27015 -map 'ns2_veil' -limit 20 -speclimit 4 -mods '44AE3979'",
 
         # Output verbose level, 0 for lowest and 2 for highest.
         "verbose_level": 2
