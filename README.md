@@ -1,5 +1,5 @@
 # NS2-Server-Watchdog
-A watchdog script(Python 2.7) for the NS2 dedicated server. It can help the server admin to:
+A watchdog script (Python 2.7) for the NS2 dedicated server. It can help the server admin to:
 
 1. Daily restart the server according to the memory leaking status
 2. Auto restart the unexpected crashed server
