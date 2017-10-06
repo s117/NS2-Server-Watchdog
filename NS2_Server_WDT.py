@@ -14,6 +14,7 @@ import locale
 import os
 import platform
 import shlex
+import shutil
 import signal
 import sys
 import time
@@ -99,7 +100,7 @@ class ConfigManager:
         'monitor_interval': 1,
 
         # Check whether the lua engine is still alive or not by utilizing the helper mod (mod_id=44AE3979).
-        'check_lua_engine_status': True,
+        'lua_engine_check_status': True,
 
         # Lua engine unresponsive tolerance (in seconds).
         # PS: DO NOT set it too low, because the helper mod will stop update the record during the initializing &  
@@ -107,10 +108,7 @@ class ConfigManager:
         'lua_engine_no_response_threshold': 60,
 
         # Date format of the helper mod's output.
-        'format_helper_mod_record': u"%m/%d/%y %H:%M:%S",
-
-        # Dump the memory before restart the unresponsive server.
-        'create_mem_dump': False,
+        'lua_engine_helper_mod_record_format': u"%m/%d/%y %H:%M:%S",
 
         # Whether restart the server every day.
         'daily_restart': True,
@@ -122,20 +120,24 @@ class ConfigManager:
         # (in byte). Set it to 0 if you always want the restart to get triggered.
         'daily_restart_vms_threshold': 768 * 1024 * 1024,
 
-        # NS2Server's root path, recommending using a absolute path.
-        'server_path': u"C:/NS2Server",  # or "/opt/NS2Server/serverfiles" for example
+        # When designating a path, if you give a relative path, it will be expended according to the running cwd
+        # NS2Server's root path
+        'server_config_executable_path': u"C:/NS2Server",  # or "/opt/NS2Server/serverfiles" for example
 
         # The name of the server's executable file.
-        'server_executable_image': u"Server.exe",  # or "server_linux32" for example
+        'server_config_executable_name': u"Server.exe",  # or "server_linux32" for example
 
-        # Path to server config dir. If you use the relative path, it should be relative to the server's root
-        'server_config_cfg_dir': u"./configs/ns2server_configs",
+        # Path to server config dir.
+        'server_config_dir_cfg': u"./server_data/ns2server_configs",
 
-        # Path to server log dir. If you use the relative path, it should be relative to the server's root
-        'server_config_log_dir': u"./configs/ns2server_logs",
+        # Path to server mod storage dir.
+        'server_config_dir_mod': u"./server_data/ns2server_mods",
 
-        # Path to server mod storage dir. If you use the relative path, it should be relative to the server's root
-        'server_config_mod_dir': u"./configs/ns2server_mods",
+        # Path to server log dir.
+        'server_config_dir_log': u"./server_data/ns2server_logs_running",
+
+        # Path to archive the past server info
+        'server_config_dir_log_archive': u"./server_data/ns2server_logs_archive",
 
         # Additional launch option.
         'server_config_extra_parameter':
@@ -191,7 +193,7 @@ class ServerProcessHandler:
     __WAIT_TIME_BEFORE_GIVE_UP = 60
 
     def __init__(self):
-        self.__server_root = ConfigManager.get_config('server_path')
+        self.__server_root = ConfigManager.get_config('server_config_executable_path')
         if not os.path.isabs(self.__server_root):
             Logger.warn(u"You are using relative path '%s' to specify the server root" % self.__server_root)
             self.__server_root = os.path.abspath(self.__server_root)
@@ -201,11 +203,8 @@ class ServerProcessHandler:
         if not os.path.isdir(self.__server_root):
             Logger.fatal(u"The root of NS2Server ('%s') does not exist" % self.__server_root)
 
-        prev_dir = os.getcwd()
-        os.chdir(self.__server_root)
-
-        param = []
-        key_dir = ['server_config_cfg_dir', 'server_config_log_dir', 'server_config_mod_dir']
+        key_dir = ['server_config_dir_cfg', 'server_config_dir_mod',
+                   'server_config_dir_log', 'server_config_dir_log_archive']
         for kd in key_dir:
             vd = ConfigManager.get_config(kd)
             if not os.path.isdir(vd):
@@ -215,23 +214,27 @@ class ServerProcessHandler:
                 Logger.warn(u"You are using relative path '%s' for config '%s')" % (vd, kd))
 
                 Logger.warn(u"DOUBLE CHECK: The absolute path for the config '%s' is '%s'. Is that correct?" % (
-                    kd, convert_rel_path_to_abs_path(self.__server_root, vd)))
-        executable_path = self.__server_root + u"/" + ConfigManager.get_config('server_executable_image')
+                    kd, os.path.abspath(vd)))
+
+        self.__server_dir_cfg = os.path.abspath(ConfigManager.get_config('server_config_dir_cfg'))
+        self.__server_dir_mod = os.path.abspath(ConfigManager.get_config('server_config_dir_mod'))
+        self.__server_dir_log = os.path.abspath(ConfigManager.get_config('server_config_dir_log'))
+        self.__server_dir_log_backup = os.path.abspath(ConfigManager.get_config('server_config_dir_log_archive'))
+
+        sub_dir = u"/x64/"
+        if (cmp(platform.architecture()[0], '64bit') is not 0) or (not os.path.isdir(self.__server_root + sub_dir)):
+            sub_dir = u"/x86/"
+            Logger.warn(u"Attention! You are running 32bit server, whose support will be dropped in the near future.")
+
+        executable_path = self.__server_root + sub_dir + ConfigManager.get_config('server_config_executable_name')
         if not os.path.isfile(executable_path):
             Logger.fatal(u"Fail to start server, because executable file '%s' does not exist" % executable_path)
 
-        param.append(executable_path)
         if not os.access(executable_path, os.X_OK):
             Logger.fatal(u"You have no execute privilege on server's executable image: %s" % executable_path)
 
-        param.append(u"-config_path")
-        param.append(ConfigManager.get_config('server_config_cfg_dir'))
-
-        param.append(u"-modstorage")
-        param.append(ConfigManager.get_config('server_config_mod_dir'))
-
-        param.append(u"-logdir")
-        param.append(ConfigManager.get_config('server_config_log_dir'))
+        param = [executable_path, u"-config_path", self.__server_dir_cfg, u"-modstorage", self.__server_dir_mod,
+                 u"-logdir", self.__server_dir_log]
 
         self.__param = param + shlex.split(ConfigManager.get_config('server_config_extra_parameter').encode('utf-8'))
 
@@ -241,10 +244,17 @@ class ServerProcessHandler:
         self.__ps_cmdline = None
         self.__ps_create_time = 0.0
 
-        os.chdir(prev_dir)
-
     def get_server_abs_root(self):
         return self.__server_root
+
+    def get_server_abs_cfg_dir(self):
+        return self.__server_dir_cfg
+
+    def get_server_abs_mod_dir(self):
+        return self.__server_dir_mod
+
+    def get_server_abs_log_dir(self):
+        return self.__server_dir_log
 
     def restart_server(self):
         self.stop_server()
@@ -374,13 +384,12 @@ class ServerProcessHandler:
         # The helper mod's record need to be updated before start because otherwise
         # the launching progress will be disturbed by the lua engine check.
         DEFAULT_PING_MODE_NAME = u"server_modding_ping.txt"
-        ABS_SERVER_CONFIG_DIR = convert_rel_path_to_abs_path(self.get_server_abs_root(),
-                                                             ConfigManager.get_config('server_config_cfg_dir'))
-        ABS_PATH_PING_MODE_TXT = ABS_SERVER_CONFIG_DIR + u"/" + DEFAULT_PING_MODE_NAME
+        ABS_PATH_PING_MODE_TXT = self.get_server_abs_cfg_dir() + u"/" + DEFAULT_PING_MODE_NAME
         try:
             expire_time = time.time() + ConfigManager.get_config('lua_engine_no_response_threshold')
 
-            st = time.strftime(ConfigManager.get_config('format_helper_mod_record'), time.localtime(expire_time))
+            st = time.strftime(ConfigManager.get_config('lua_engine_helper_mod_record_format'),
+                               time.localtime(expire_time))
             with open(ABS_PATH_PING_MODE_TXT, 'w') as f:
                 f.write(st)
         except IOError:
@@ -389,39 +398,30 @@ class ServerProcessHandler:
             Logger.verbose(u"Force updated the helper mod's record, value: '%s'" % st)
 
     def __archive_log_and_dmp(self):
-        DEFAULT_LOG_FILE_NAME = u"log-Server.txt"
-        DEFAULT_DUMP_FILE_NAME = u"lastcrash.dmp"
 
         time_label = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime(time.time()))
 
-        prev_dir = os.getcwd()
-        os.chdir(self.get_server_abs_root())
-        os.chdir(ConfigManager.get_config('server_config_log_dir'))
-
+        new_archive_dir = self.__server_dir_log_backup + u"/" + time_label
+        i = 1
+        while os.path.exists(new_archive_dir):
+            new_archive_dir = self.__server_dir_log_backup + u"/" + time_label + u"_(%d)" % i
+            i = i + 1
         try:
-            if os.path.exists(DEFAULT_DUMP_FILE_NAME):
-                os.rename(DEFAULT_DUMP_FILE_NAME, time_label + u"_" + DEFAULT_DUMP_FILE_NAME)
-                Logger.verbose(u"Archived the crash dump: '%s' -> '%s'" % (
-                    DEFAULT_DUMP_FILE_NAME, time_label + u"_" + DEFAULT_DUMP_FILE_NAME))
+            os.mkdir(new_archive_dir)
         except Exception:
-            Logger.fatal(u"Fail to archive the crash dump file. (Maybe the last server process is still running?)")
-
-        try:
-            if os.path.exists(DEFAULT_LOG_FILE_NAME):
-                os.rename(DEFAULT_LOG_FILE_NAME, time_label + u"_" + DEFAULT_LOG_FILE_NAME)
-                Logger.verbose(u"Archived the server log: '%s' -> '%s'" % (
-                    DEFAULT_LOG_FILE_NAME, time_label + u"_" + DEFAULT_LOG_FILE_NAME))
-        except Exception:
-            Logger.fatal(u"Fail to archive the server log file. (Maybe the last server process is still running?)")
-        os.chdir(prev_dir)
-
-
-def convert_rel_path_to_abs_path(root_path, rel_path):
-    prev_dir = os.getcwd()
-    os.chdir(root_path)
-    abs_path = os.path.abspath(rel_path)
-    os.chdir(prev_dir)
-    return abs_path
+            Logger.fatal(u"Fail to create new folder for archive, check user permission)")
+        else:
+            try:
+                log_dir_files = os.listdir(self.__server_dir_log)
+            except Exception:
+                Logger.fatal(u"Fail to list the running log folder, check user permission)")
+            else:
+                try:
+                    for file in log_dir_files:
+                        file_full_path = self.__server_dir_log + u"/" + file
+                        shutil.move(file_full_path, new_archive_dir + u"/" + os.path.basename(file))
+                except Exception:
+                    Logger.fatal(u"Fail to archive the log dir. (Maybe the previous server process is still running?)")
 
 
 class ServerWatchDog:
@@ -432,12 +432,10 @@ class ServerWatchDog:
         self.__daily_restart_vms_threshold = ConfigManager.get_config('daily_restart_vms_threshold')
         self.__next_daily_restart_trigger_time = self.__calc_next_daily_restart_trigger_timestamp()
 
-        self.__is_check_lua_engine_status = ConfigManager.get_config('check_lua_engine_status')
-        abspath_server_config = convert_rel_path_to_abs_path(self.__server.get_server_abs_root(),
-                                                             ConfigManager.get_config('server_config_cfg_dir'))
-        self.__abspath_helper_mod_output = abspath_server_config + u"/server_modding_ping.txt"
+        self.__is_lua_engine_check_status = ConfigManager.get_config('lua_engine_check_status')
+        self.__abspath_helper_mod_output = self.__server.get_server_abs_cfg_dir() + u"/server_modding_ping.txt"
         self.__lua_engine_no_response_threshold = ConfigManager.get_config('lua_engine_no_response_threshold')
-        self.__helper_mod_record_pattern = ConfigManager.get_config("format_helper_mod_record")
+        self.__helper_mod_record_pattern = ConfigManager.get_config("lua_engine_helper_mod_record_format")
         self.__helper_mod_output_invalid_cnt = 0
 
     def run_server(self):
@@ -490,7 +488,7 @@ class ServerWatchDog:
             return False
 
     def __is_server_lua_engine_dead(self):
-        if not self.__is_check_lua_engine_status:
+        if not self.__is_lua_engine_check_status:
             return False
 
         st = u"uninitialized"

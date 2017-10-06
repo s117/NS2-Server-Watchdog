@@ -11,7 +11,7 @@ class TextFileWriter:
 
     def __init__(self):
         if not (os.path.exists(TextFileWriter.__LOG_STORAGE_DIR) and os.path.isdir(TextFileWriter.__LOG_STORAGE_DIR)):
-            os.mkdir(TextFileWriter.__LOG_STORAGE_DIR, 0o666)
+            os.mkdir(TextFileWriter.__LOG_STORAGE_DIR)
         log_file_std_name = TextFileWriter.__LOG_FILE_PATTERN % time.strftime(TextFileWriter.__LOG_DATE_PATTERN,
                                                                               time.localtime(time.time()))
         log_file_std_name = TextFileWriter.__LOG_STORAGE_DIR + u"/" + log_file_std_name
