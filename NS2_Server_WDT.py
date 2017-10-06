@@ -125,7 +125,7 @@ class ConfigManager:
         'server_config_executable_path': u"C:/NS2Server",  # or "/opt/NS2Server/serverfiles" for example
 
         # The name of the server's executable file.
-        'server_config_executable_name': u"Server.exe",  # or "server_linux32" for example
+        'server_config_executable_name': u"Server.exe",  # or "server_linux" for linux
 
         # Path to server config dir.
         'server_config_dir_cfg': u"./server_data/ns2server_configs",
