@@ -427,6 +427,7 @@ class ServerProcessHandler:
 class ServerWatchDog:
     def __init__(self):
         self.__server = ServerProcessHandler()
+        self.__monitor_interval = ConfigManager.get_config('monitor_interval')
         self.__is_daily_restart_server = ConfigManager.get_config('daily_restart')
         self.__daily_restart_time_hms = ConfigManager.get_config('daily_restart_h_m_s')
         self.__daily_restart_vms_threshold = ConfigManager.get_config('daily_restart_vms_threshold')
@@ -441,7 +442,7 @@ class ServerWatchDog:
     def run_server(self):
         Logger.info(u"NS2 Server Watchdog script.")
         Logger.info(u"Press Ctrl-C to terminate this script and the running server process.")
-        sleep_sec = ConfigManager.get_config('monitor_interval')
+        sleep_sec = self.__monitor_interval
         self.__server.start_server()
         while not ExitFlag:
             if self.__is_server_process_missing() or \
@@ -531,17 +532,18 @@ class ServerWatchDog:
             if exception_flag:
                 # fail to parse the helper mod's record
                 self.__helper_mod_output_invalid_cnt = self.__helper_mod_output_invalid_cnt + 1
-                if self.__helper_mod_output_invalid_cnt < self.__lua_engine_no_response_threshold:
+                actual_passed_time = self.__helper_mod_output_invalid_cnt * self.__monitor_interval
+                if actual_passed_time < self.__lua_engine_no_response_threshold:
                     Logger.warn(
                         PREFIX_STRING + exception_msg +
-                        (u" Assume engine is good (%d/%d)" % (
-                            self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold)))
+                        (u" Assume engine is good (%ds/%ds)" % (
+                            actual_passed_time, self.__lua_engine_no_response_threshold)))
                     is_dead = False
                 else:
                     Logger.warn(
                         PREFIX_STRING + exception_msg +
-                        (u" Assume engine is down (%d/%d)" % (
-                            self.__helper_mod_output_invalid_cnt, self.__lua_engine_no_response_threshold)))
+                        (u" Assume engine is down (%ds/%ds)" % (
+                            actual_passed_time, self.__lua_engine_no_response_threshold)))
                     is_dead = True
 
         return is_dead
