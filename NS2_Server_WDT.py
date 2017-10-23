@@ -103,7 +103,7 @@ class ConfigManager:
         'lua_engine_check_status': True,
 
         # Lua engine unresponsive tolerance (in seconds).
-        # PS: DO NOT set it too low, because the helper mod will stop update the record during the initializing &  
+        # PS: DO NOT set it too low, because the helper mod will stop update the record during the initializing &
         #     map changing. If the threshold is too low, the server would get interrupted when performing those action.
         'lua_engine_no_response_threshold': 60,
 
@@ -411,17 +411,35 @@ class ServerProcessHandler:
         except Exception:
             Logger.fatal(u"Fail to create new folder for archive, check user permission)")
         else:
-            try:
-                log_dir_files = os.listdir(self.__server_dir_log)
-            except Exception:
-                Logger.fatal(u"Fail to list the running log folder, check user permission)")
-            else:
+            # retry wait time after fail to move files from running folder to archive folder, in seconds
+            retry_wait_sec = 5
+            retry_flag = True
+            global ExitFlag
+            while retry_flag:
+                Logger.verbose(u"Trying to archive previous process's running history from '%s' to '%s'..." % (
+                    self.__server_dir_log, new_archive_dir))
+                if ExitFlag:
+                    Logger.fatal(u"Script get terminated while trying to archive the server's running log.")
                 try:
-                    for file in log_dir_files:
-                        file_full_path = self.__server_dir_log + u"/" + file
-                        shutil.move(file_full_path, new_archive_dir + u"/" + os.path.basename(file))
+                    log_dir_files = os.listdir(self.__server_dir_log)
                 except Exception:
-                    Logger.fatal(u"Fail to archive the log dir. (Maybe the previous server process is still running?)")
+                    Logger.fatal(u"Fail to list the running log folder, check user permission)")
+                else:
+                    try:
+                        for file in log_dir_files:
+                            file_full_path = self.__server_dir_log + u"/" + file
+                            shutil.move(file_full_path, new_archive_dir + u"/" + os.path.basename(file))
+                    except Exception:
+                        Logger.warn(
+                            u"Archive failed. (Maybe the bug collector or previous server process is still running?)")
+                        Logger.warn(u"Retry archiving after %d seconds." % retry_wait_sec)
+                        try:
+                            time.sleep(retry_wait_sec)
+                        except IOError:
+                            Logger.debug(u"Archiving retry sleep get interrupted.")
+                    else:
+                        retry_flag = False
+            Logger.verbose(u"Previous process's running history has archived to '%s'." % new_archive_dir)
 
 
 class ServerWatchDog:
