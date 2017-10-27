@@ -222,9 +222,8 @@ class ServerProcessHandler:
         self.__server_dir_log_backup = os.path.abspath(ConfigManager.get_config('server_config_dir_log_archive'))
 
         sub_dir = u"/x64/"
-        if (cmp(platform.architecture()[0], '64bit') is not 0) or (not os.path.isdir(self.__server_root + sub_dir)):
-            sub_dir = u"/x86/"
-            Logger.warn(u"Attention! You are running 32bit server, whose support will be dropped in the near future.")
+        if cmp(platform.architecture()[0], '64bit') is not 0:
+            Logger.fatal(u"You are running 32bit OS, which is not supported by NS2DS anymore. Consider upgrading.")
 
         executable_path = self.__server_root + sub_dir + ConfigManager.get_config('server_config_executable_name')
         if not os.path.isfile(executable_path):
