@@ -3,8 +3,8 @@ A watchdog script (Python 2.7) for the NS2 dedicated server. It can help the ser
 
 1. Daily restart the server according to the memory leaking status
 2. Auto restart the unexpected crashed server
-3. Auto restart the (Lua VM) frozen server 
-4. Auto restart the server if it get stuck on downloading mod from Steam 
+3. Auto restart the (Lua VM) frozen server
+4. Auto restart the server if it get stuck on downloading mod from Steam
 
 * 3 & 4 requires the server install this [helper mod](http://steamcommunity.com/sharedfiles/filedetails/?id=1152268665) to detect the status of lua VM (Server VM)
 
@@ -18,7 +18,7 @@ To let the script take care of your server, you should use this script to start 
         'lua_engine_check_status': True,
 
         # Lua engine unresponsive tolerance (in seconds).
-        # PS: DO NOT set it too low, because the helper mod will stop update the record during the initializing &  
+        # PS: DO NOT set it too low, because the helper mod will stop update the record during the initializing &
         #     map changing. If the threshold is too low, the server would get interrupted when performing those action.
         'lua_engine_no_response_threshold': 60,
 
@@ -61,6 +61,6 @@ To let the script take care of your server, you should use this script to start 
         # Output verbose level, 0 for lowest and 2 for highest.
         'verbose_level': 1
 
-Tested under Windows & Linux / Python 2.7.13 / NS2DS build318
+Tested under Windows & Linux / Python 2.7.13 / NS2DS build319
 
 MIT License.
