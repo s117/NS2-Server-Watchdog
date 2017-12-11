@@ -304,12 +304,13 @@ class ServerProcessHandler:
                 self.__pid = self.__process.pid
                 self.__ps = psutil.Process(pid=self.__pid)
                 self.__ps_create_time = self.__ps.create_time()
-                self.__ps_cmdline = u""
-
-                for i in self.__ps.cmdline():
-                    if type(i) is str:
-                        i = i.decode(locale.getdefaultlocale()[1])
-                    self.__ps_cmdline = self.__ps_cmdline + i + u" "
+                self.__ps_cmdline = cmdline
+                # self.__ps_cmdline = u""
+                # for i in self.__ps.cmdline():
+                #     if type(i) is str:
+                #         # i = i.decode(locale.getdefaultlocale()[1])
+                #         i = i.decode('utf-8')
+                #     self.__ps_cmdline = self.__ps_cmdline + i + u" "
 
             except psutil.NoSuchProcess:
                 self.__pid = -1
