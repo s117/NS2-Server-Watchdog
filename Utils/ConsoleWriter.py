@@ -2,11 +2,20 @@
 import locale
 import sys
 
+default_locale = locale.getdefaultlocale()[1]
+
 
 class ConsoleWriter:
+    def __init__(self):
+        pass
+
     @staticmethod
     def encode_text(text):
-        return text.encode(locale.getdefaultlocale()[1])
+        if isinstance(text, unicode):
+            text = text.encode(default_locale)
+        elif not isinstance(text, str):
+            raise TypeError("text should be either unicode or str")
+        return text
 
     def debug(self, text):
         text = self.encode_text(text)

@@ -1,4 +1,5 @@
 # encoding: utf-8
+
 import os
 import time
 
@@ -32,6 +33,10 @@ class TextFileWriter:
         self.__log_file.close()
 
     def log(self, text):
-        text = text.encode(TextFileWriter.__LOG_ENCODING)
+        if isinstance(text, unicode):
+            text = text.encode(TextFileWriter.__LOG_ENCODING)
+        elif not isinstance(text, str):
+            raise TypeError("text should be either unicode or str")
+
         self.__log_file.write(text)
         self.__log_file.flush()
