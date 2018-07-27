@@ -235,7 +235,8 @@ class ServerProcessHandler:
         param = [executable_path, u"-config_path", self.__server_dir_cfg, u"-modstorage", self.__server_dir_mod,
                  u"-logdir", self.__server_dir_log]
 
-        self.__param = param + shlex.split(ConfigManager.get_config('server_config_extra_parameter').encode('utf-8'))
+        self.__param = param + map(lambda st: st.decode('utf-8'), shlex.split(
+            ConfigManager.get_config('server_config_extra_parameter').encode('utf-8')))
 
         self.__pid = -1
         self.__process = None
@@ -270,8 +271,6 @@ class ServerProcessHandler:
             try:
                 cmdline = u""
                 for p in self.__param:
-                    if type(p) is str:
-                        p = p.decode('utf-8')
                     if u" " in p:
                         p = u"\"" + p + u"\""
                     cmdline = cmdline + p + u" "
@@ -428,8 +427,16 @@ class ServerProcessHandler:
                     try:
                         for file in log_dir_files:
                             file_full_path = self.__server_dir_log + u"/" + file
-                            shutil.move(file_full_path, new_archive_dir + u"/" + os.path.basename(file))
-                    except Exception:
+                            dist_full_path = new_archive_dir + u"/" + os.path.basename(file)
+                            if os.path.exists(dist_full_path):
+                                if os.path.isdir(dist_full_path):
+                                    Logger.verbose(u"overwriting tree: '%s'" % dist_full_path)
+                                    shutil.rmtree(dist_full_path)
+                                else:
+                                    Logger.verbose(u"overwriting file: '%s'" % dist_full_path)
+                                    os.remove(dist_full_path)
+                            shutil.move(file_full_path, dist_full_path)
+                    except Exception as ex:
                         Logger.warn(
                             u"Archive failed. (Maybe the bug collector or previous server process is still running?)")
                         Logger.warn(u"Retry archiving after %d seconds." % retry_wait_sec)
