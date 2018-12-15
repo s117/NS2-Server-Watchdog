@@ -61,6 +61,6 @@ To let the script take care of your server, you should use this script to start 
         # Output verbose level, 0 for lowest and 2 for highest.
         'verbose_level': 1
 
-Tested under Windows & Linux / Python 2.7.13 / NS2DS build319
+Tested under Windows & Linux / Python 2.7.13 / NS2DS build325
 
 MIT License.
