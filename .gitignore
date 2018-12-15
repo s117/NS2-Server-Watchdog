@@ -100,4 +100,8 @@ ENV/
 # mypy
 .mypy_cache/
 
+.idea
+*.exe
 config.json
+log
+server_data

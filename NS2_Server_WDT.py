@@ -10,7 +10,6 @@
 
 import datetime
 import json
-import locale
 import os
 import platform
 import shlex
@@ -18,7 +17,10 @@ import shutil
 import signal
 import sys
 import time
+from multiprocessing import Queue
 from subprocess import Popen
+from threading import Thread
+from zipfile import ZipFile, ZIP_DEFLATED
 
 import psutil
 
@@ -26,7 +28,7 @@ from Utils.TextFileWriter import TextFileWriter
 
 if cmp(platform.system(), 'Windows') is 0:
     from Utils.WindowsConsoleWriter import WindowsConsoleWriter as PlatformConsoleWriter
-    from subprocess import CREATE_NEW_PROCESS_GROUP
+    from subprocess import CREATE_NEW_CONSOLE
 else:
     from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
 
@@ -188,6 +190,82 @@ class ConfigManager:
         Logger.info(u"Config loaded")
 
 
+class ASyncZipper(object):
+    task_queue = Queue()
+
+    def __init__(self):
+        raise RuntimeError(u"This class is not intend to be instantiated directly")
+
+    @staticmethod
+    def working_thread_run():
+        Logger.debug(u"ZIP thread online.")
+        while True:
+            job_desc = ASyncZipper.task_queue.get(block=True, timeout=None)
+
+            # [source_path, dest_zip_name, remove_src_after_zip]
+            assert isinstance(job_desc, list)
+            assert len(job_desc) == 3
+
+            zip_src_path = job_desc[0]
+            zip_dest_path = job_desc[1]
+            zip_remove_src_after_zip = job_desc[2]
+
+            if zip_src_path is None and zip_dest_path is None and zip_remove_src_after_zip is None:
+                # received quit request
+                break
+            ASyncZipper.zip_folder(zip_src_path, zip_dest_path, zip_remove_src_after_zip)
+
+    @staticmethod
+    def zip_folder(zip_src_path, zip_dest_path, zip_remove_src_after_zip):
+        assert isinstance(zip_src_path, unicode) and \
+               isinstance(zip_dest_path, unicode) and \
+               isinstance(zip_remove_src_after_zip, bool)
+        if not os.path.isdir(zip_src_path):
+            Logger.warn(u"Couldn't find %s folder anymore, aborting zipping process!" % zip_src_path)
+            return
+        tmp_file_name = zip_dest_path + ".zipping"
+        Logger.verbose(u"Zipping '%s'" % zip_src_path)
+
+        with ZipFile(tmp_file_name, "w", ZIP_DEFLATED) as z:
+            for root, dirs, files in os.walk(zip_src_path):
+                # NOTE: ignores empty directories
+                for fn in files:
+                    absfn = os.path.join(root, fn)
+                    zfn = os.path.basename(absfn)
+                    z.write(absfn, zfn)
+
+        # time.sleep(1)
+        if os.path.exists(tmp_file_name):
+            os.rename(tmp_file_name, zip_dest_path)
+        Logger.verbose(u"Zipped '%s'" % zip_src_path)
+        if zip_remove_src_after_zip:
+            shutil.rmtree(zip_src_path)
+
+    working_thread = Thread(target=working_thread_run.__func__)
+
+    @staticmethod
+    def join():
+        ASyncZipper.working_thread.join()
+
+    @staticmethod
+    def request_zip(src_dir, dest_zip_path, del_src_after_zip=True):
+        assert isinstance(src_dir, unicode)
+        assert isinstance(dest_zip_path, unicode)
+        assert isinstance(del_src_after_zip, bool)
+
+        ASyncZipper.task_queue.put([src_dir, dest_zip_path, del_src_after_zip])
+
+    @staticmethod
+    def start_worker_thread():
+        if not ASyncZipper.working_thread.isAlive():
+            ASyncZipper.working_thread.start()
+
+    @staticmethod
+    def stop_worker_thread():
+        if ASyncZipper.working_thread.isAlive():
+            ASyncZipper.task_queue.put([None, None, None])
+
+
 class ServerProcessHandler:
     __WAIT_TIME_BEFORE_FORCE_KILL = 5
     __WAIT_TIME_BEFORE_GIVE_UP = 60
@@ -195,9 +273,9 @@ class ServerProcessHandler:
     def __init__(self):
         self.__server_root = ConfigManager.get_config('server_config_executable_path')
         if not os.path.isabs(self.__server_root):
-            Logger.warn(u"You are using relative path '%s' to specify the server root" % self.__server_root)
+            Logger.verbose(u"You are using relative path '%s' to specify the server root" % self.__server_root)
             self.__server_root = os.path.abspath(self.__server_root)
-            Logger.warn(
+            Logger.verbose(
                 u"DOUBLE CHECK: The absolute path for the server root is '%s'. Is that correct?" % self.__server_root)
 
         if not os.path.isdir(self.__server_root):
@@ -211,9 +289,9 @@ class ServerProcessHandler:
                 Logger.fatal(
                     u"Fail to start server, because directory '%s' does not exist (value of '%s')" % (vd, kd))
             if not os.path.isabs(vd):
-                Logger.warn(u"You are using relative path '%s' for config '%s')" % (vd, kd))
+                Logger.verbose(u"You are using relative path '%s' for config '%s')" % (vd, kd))
 
-                Logger.warn(u"DOUBLE CHECK: The absolute path for the config '%s' is '%s'. Is that correct?" % (
+                Logger.verbose(u"DOUBLE CHECK: The absolute path for the config '%s' is '%s'. Is that correct?" % (
                     kd, os.path.abspath(vd)))
 
         self.__server_dir_cfg = os.path.abspath(ConfigManager.get_config('server_config_dir_cfg'))
@@ -277,18 +355,16 @@ class ServerProcessHandler:
 
                 cmdline = cmdline
 
-                Logger.info(u"Starting server using cmdline:'%s'" % cmdline)
+                Logger.info(u"Starting server using cmdline:\n%s" % cmdline)
 
                 # cmdline = cmdline.encode(locale.getdefaultlocale()[1])
                 with open(os.devnull, 'w') as DEVNULL:
                     if cmp(platform.system(), 'Windows') is 0:
                         # Start server under the Windows
                         self.__process = Popen(cmdline.encode('utf-8'),
-                                               stdin=DEVNULL,
-                                               stdout=DEVNULL,
-                                               stderr=DEVNULL,
+                                               close_fds=True,
                                                cwd=self.get_server_abs_root(),
-                                               creationflags=CREATE_NEW_PROCESS_GROUP)
+                                               creationflags=CREATE_NEW_CONSOLE)
                     else:
                         # Start server under the Linux
                         self.__process = Popen(
@@ -408,7 +484,7 @@ class ServerProcessHandler:
         try:
             os.mkdir(new_archive_dir)
         except Exception:
-            Logger.fatal(u"Fail to create new folder for archive, check user permission)")
+            Logger.fatal(u"Fail to create new folder for archive, check user permission")
         else:
             # retry wait time after fail to move files from running folder to archive folder, in seconds
             retry_wait_sec = 5
@@ -422,7 +498,7 @@ class ServerProcessHandler:
                 try:
                     log_dir_files = os.listdir(self.__server_dir_log)
                 except Exception:
-                    Logger.fatal(u"Fail to list the running log folder, check user permission)")
+                    Logger.fatal(u"Fail to list the running log folder, check user permission")
                 else:
                     try:
                         for file in log_dir_files:
@@ -447,6 +523,7 @@ class ServerProcessHandler:
                     else:
                         retry_flag = False
             Logger.verbose(u"Previous process's running history has archived to '%s'." % new_archive_dir)
+            ASyncZipper.request_zip(new_archive_dir, u"%s.zip" % new_archive_dir, True)
 
 
 class ServerWatchDog:
@@ -467,6 +544,8 @@ class ServerWatchDog:
     def run_server(self):
         Logger.info(u"NS2 Server Watchdog script.")
         Logger.info(u"Press Ctrl-C to terminate this script and the running server process.")
+        ASyncZipper.start_worker_thread()
+
         sleep_sec = self.__monitor_interval
         self.__server.start_server()
         while not ExitFlag:
@@ -480,13 +559,17 @@ class ServerWatchDog:
                 Logger.debug(u"Main loop met IOError during sleep.")
         self.__server.stop_server()
 
+        Logger.info(u"Waiting ZIP thread finish all the work...")
+        ASyncZipper.stop_worker_thread()
+        ASyncZipper.join()
+
     def __is_server_process_missing(self):
         PREFIX_STRING = u"Process monitor: "
         if self.__server.is_running():
             Logger.debug(PREFIX_STRING + u"process alive")
             return False
         else:
-            Logger.info(PREFIX_STRING + u"unexpected server shutdown detected, restoring...")
+            Logger.warn(PREFIX_STRING + u"unexpected server shutdown detected, restoring...")
             return True
 
     def __is_need_daily_restart(self):
