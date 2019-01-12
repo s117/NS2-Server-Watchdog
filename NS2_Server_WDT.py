@@ -1,9 +1,7 @@
+#!/usr/bin/env python2.7
 #  -*- encoding:UTF-8 -*-
 #
 # NS2 Server Watch dog -- a Natural Selection 2 server monitoring script
-#
-#
-# Requires Python 2.7
 #
 # Wrote by John <admin@0x10c.pw>
 # MIT License.
