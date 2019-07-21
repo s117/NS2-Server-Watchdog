@@ -28,7 +28,7 @@ from Utils.TextFileWriter import TextFileWriter
 
 if cmp(platform.system(), 'Windows') is 0:
     from Utils.WindowsConsoleWriter import WindowsConsoleWriter as PlatformConsoleWriter
-    from subprocess import CREATE_NEW_CONSOLE
+    from subprocess import CREATE_NEW_CONSOLE, STARTF_USESHOWWINDOW, STARTUPINFO
 else:
     from Utils.UnixConsoleWriter import UnixConsoleWriter as PlatformConsoleWriter
 
@@ -144,6 +144,9 @@ class ConfigManager:
         # Additional launch option.
         'server_config_extra_parameter':
             u"-name 'Test' -port 27015 -map 'ns2_veil' -limit 20 -speclimit 4 -mods '44AE3979'",
+
+        # Windows OS specific: hide server window
+        'win_os_hide_server_window': False,
 
         # Output verbose level, 0 for lowest and 2 for highest.
         'verbose_level': 1
@@ -361,10 +364,17 @@ class ServerProcessHandler:
                 with open(os.devnull, 'w') as DEVNULL:
                     if cmp(platform.system(), 'Windows') is 0:
                         # Start server under the Windows
+                        startupinfo = None
+                        if ConfigManager.get_config('win_os_hide_server_window'):
+                            startupinfo = STARTUPINFO()
+                            startupinfo.dwFlags |= STARTF_USESHOWWINDOW
+
                         self.__process = Popen(cmdline.encode('utf-8'),
                                                close_fds=True,
                                                cwd=self.get_server_abs_root(),
-                                               creationflags=CREATE_NEW_CONSOLE)
+                                               creationflags=CREATE_NEW_CONSOLE,
+                                               startupinfo=startupinfo
+                                               )
                     else:
                         # Start server under the Linux
                         self.__process = Popen(
