@@ -120,6 +120,12 @@ class ConfigManager:
         # (in byte). Set it to 0 if you always want the restart to get triggered.
         'daily_restart_vms_threshold': 768 * 1024 * 1024,
 
+        # Whether stop the server at a given time everyday.
+        'auto_stop': False,
+
+        # When to stop the server? (24h, [hh, mm, ss], local time).
+        'auto_stop_h_m_s': [04, 00, 00],
+
         # When designating a path, if you give a relative path, it will be expended according to the running cwd
         # NS2Server's root path
         'server_config_executable_path': u"C:/NS2Server",  # or "/opt/NS2Server/serverfiles" for example
@@ -541,7 +547,19 @@ class ServerWatchDog:
         self.__is_daily_restart_server = ConfigManager.get_config('daily_restart')
         self.__daily_restart_time_hms = ConfigManager.get_config('daily_restart_h_m_s')
         self.__daily_restart_vms_threshold = ConfigManager.get_config('daily_restart_vms_threshold')
-        self.__next_daily_restart_trigger_time = self.__calc_next_daily_restart_trigger_timestamp()
+        self.__next_daily_restart_trigger_time = self.__calc_next_event_trigger_timestamp(
+            self.__daily_restart_time_hms[0],
+            self.__daily_restart_time_hms[1],
+            self.__daily_restart_time_hms[2]
+        )
+
+        self.__is_time_for_auto_stop_server = ConfigManager.get_config('auto_stop')
+        self.__auto_stop_time_hms = ConfigManager.get_config('auto_stop_h_m_s')
+        self.__next_auto_stop_trigger_time = self.__calc_next_event_trigger_timestamp(
+            self.__auto_stop_time_hms[0],
+            self.__auto_stop_time_hms[1],
+            self.__auto_stop_time_hms[2]
+        )
 
         self.__is_lua_engine_check_status = ConfigManager.get_config('lua_engine_check_status')
         self.__abspath_helper_mod_output = self.__server.get_server_abs_cfg_dir() + u"/server_modding_ping.txt"
@@ -550,6 +568,8 @@ class ServerWatchDog:
         self.__helper_mod_output_invalid_cnt = 0
 
     def run_server(self):
+        global ExitFlag
+
         Logger.info(u"NS2 Server Watchdog script.")
         Logger.info(u"Press Ctrl-C to terminate this script and the running server process.")
         ASyncZipper.start_worker_thread()
@@ -561,10 +581,15 @@ class ServerWatchDog:
                     self.__is_need_daily_restart() or \
                     self.__is_server_lua_engine_dead():
                 self.__server.restart_server()
+
             try:
                 time.sleep(sleep_sec)
             except IOError:
                 Logger.debug(u"Main loop met IOError during sleep.")
+
+            if self.__is_time_for_auto_stop_server():
+                ExitFlag = True
+
         self.__server.stop_server()
 
         Logger.info(u"Waiting ZIP thread finish all the work...")
@@ -587,7 +612,11 @@ class ServerWatchDog:
         PREFIX_STRING = u"Daily restart: "
         if time.time() >= self.__next_daily_restart_trigger_time:
             Logger.info(PREFIX_STRING + u"now is the time to restart")
-            self.__next_daily_restart_trigger_time = self.__calc_next_daily_restart_trigger_timestamp()
+            self.__next_daily_restart_trigger_time = self.__calc_next_event_trigger_timestamp(
+                self.__daily_restart_time_hms[0],
+                self.__daily_restart_time_hms[1],
+                self.__daily_restart_time_hms[2]
+            )
             process_info = self.__server.get_info()
             if process_info is not None:
                 if process_info['vms'] < self.__daily_restart_vms_threshold:
@@ -601,6 +630,17 @@ class ServerWatchDog:
             else:
                 Logger.info(PREFIX_STRING + u"server will get restarted (server process stopped)")
                 return True
+        else:  # not now
+            return False
+
+    def __is_time_for_server_stop(self):
+        if not self.__is_time_for_auto_stop_server:
+            return False
+
+        PREFIX_STRING = u"Auto stop: "
+        if time.time() >= self.__next_auto_stop_trigger_time:
+            Logger.info(PREFIX_STRING + u"now is the time to auto stop")
+            return True
         else:  # not now
             return False
 
@@ -664,15 +704,13 @@ class ServerWatchDog:
 
         return is_dead
 
-    def __calc_next_daily_restart_trigger_timestamp(self):
+    @staticmethod
+    def __calc_next_event_trigger_timestamp(h, m, s):
         time_now_timestamp = time.time()
         time_now = time.localtime(time_now_timestamp)
         delta_one_day = datetime.timedelta(days=1)
 
-        trigger_time_today = datetime.datetime(time_now.tm_year, time_now.tm_mon, time_now.tm_mday,
-                                               self.__daily_restart_time_hms[0],
-                                               self.__daily_restart_time_hms[1],
-                                               self.__daily_restart_time_hms[2])
+        trigger_time_today = datetime.datetime(time_now.tm_year, time_now.tm_mon, time_now.tm_mday, h, m, s)
         trigger_time_tomorrow = trigger_time_today + delta_one_day
 
         trigger_time_today_unix_timestamp = time.mktime(trigger_time_today.timetuple())
